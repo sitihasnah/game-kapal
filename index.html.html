@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sky Ace: Simpulan Bahasa 1940</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js 3D Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Tone.js for Web Audio Synthesis -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <!-- Google Fonts: VT323 & Montserrat -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700;800&family=Press+Start+2P&family=Teko:wght@600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for UI icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0d1b2a;
+            font-family: 'Chakra Petch', sans-serif;
+        }
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            z-index: 1;
+        }
+        .arcade-font {
+            font-family: 'Press Start 2P', monospace;
+        }
+        .military-font {
+            font-family: 'Teko', sans-serif;
+            letter-spacing: 2px;
+        }
+        .vintage-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 5;
+            background: radial-gradient(circle at center, transparent 55%, rgba(10, 15, 20, 0.75) 100%);
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.85);
+        }
+        .scanlines {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 6;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            opacity: 0.35;
+        }
+    </style>
+</head>
+<body class="relative text-white overflow-hidden select-none">
+
+    <!-- 3D ThreeJS Canvas Container -->
+    <div id="game-container" class="relative w-full h-full">
+        <canvas id="game-canvas"></canvas>
+        <div class="vintage-overlay"></div>
+        <div class="scanlines"></div>
+    </div>
+
+    <!-- In-Game HUD -->
+    <div id="hud" class="hidden absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-6">
+        <!-- Top Bar: Team Target, Distance, Score & HP -->
+        <div class="w-full flex justify-between items-start">
+            <!-- Left: Team Assignment & Gate Target -->
+            <div class="flex items-center space-x-3 bg-slate-900/85 border-2 border-red-500/70 p-3 rounded-xl backdrop-blur-md shadow-2xl" id="hud-team-box">
+                <div id="hud-team-badge" class="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xl border-2 bg-red-600/30 border-red-500 text-red-400 shadow-lg">
+                    <i class="fa-solid fa-plane"></i>
+                </div>
+                <div>
+                    <div class="text-[11px] text-amber-300 font-bold uppercase tracking-wider">Sasaran Gerbang Skuad</div>
+                    <div id="hud-team-name" class="text-lg md:text-xl font-extrabold uppercase military-font tracking-wide text-red-400">
+                        PASUKAN MERAH
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center: Distance to Portals -->
+            <div class="hidden sm:flex flex-col items-center bg-slate-900/85 border border-slate-700/80 px-4 py-2 rounded-xl backdrop-blur-md">
+                <span class="text-xs uppercase text-slate-400 font-semibold tracking-wider">Jarak Ke Gerbang</span>
+                <span id="hud-distance" class="text-2xl font-black text-amber-400 military-font tracking-wider">250 M</span>
+                <div class="w-32 bg-slate-800 h-2 rounded-full overflow-hidden mt-1 border border-slate-600">
+                    <div id="hud-distance-bar" class="bg-amber-500 h-full w-full transition-all duration-75"></div>
+                </div>
+            </div>
+
+            <!-- Right: Score, Streak, & HP -->
+            <div class="flex flex-col items-end space-y-2">
+                <div class="bg-slate-900/85 border-2 border-slate-700 px-4 py-2 rounded-xl backdrop-blur-md flex items-center space-x-4">
+                    <div class="text-right">
+                        <div class="text-xs text-slate-400 font-semibold">MARKAH</div>
+                        <div id="hud-score" class="text-2xl font-black text-yellow-400 military-font tracking-wider">00000</div>
+                    </div>
+                    <div class="h-8 w-px bg-slate-700"></div>
+                    <div class="text-right">
+                        <div class="text-xs text-slate-400 font-semibold">KOMBO</div>
+                        <div id="hud-streak" class="text-2xl font-black text-emerald-400 military-font">x0</div>
+                    </div>
+                </div>
+
+                <!-- Plane Integrity Bar -->
+                <div class="bg-slate-900/85 border border-slate-700 px-3 py-1.5 rounded-xl backdrop-blur-md flex items-center space-x-2">
+                    <i class="fa-solid fa-shield-halved text-emerald-400 text-sm"></i>
+                    <div class="w-24 md:w-32 bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-600">
+                        <div id="hud-health-bar" class="bg-emerald-500 h-full w-full transition-all duration-300"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Warning HUD message -->
+        <div id="hud-alert" class="hidden self-center bg-red-600/90 text-white font-bold px-6 py-2 rounded-lg border-2 border-red-300 text-lg uppercase tracking-widest shadow-2xl animate-pulse">
+            PERINGATAN!
+        </div>
+
+        <!-- Mobile Touch Controls -->
+        <div class="w-full flex justify-between items-end pointer-events-auto pb-4 md:hidden">
+            <div class="flex space-x-3">
+                <button id="btn-left" class="w-16 h-16 bg-slate-800/90 border-2 border-slate-600 active:bg-amber-600 text-2xl rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <button id="btn-right" class="w-16 h-16 bg-slate-800/90 border-2 border-slate-600 active:bg-amber-600 text-2xl rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+            <button id="btn-shoot" class="w-20 h-20 bg-red-600/90 border-4 border-red-400 active:bg-red-700 text-3xl rounded-3xl flex items-center justify-center shadow-2xl active:scale-90 transition-transform">
+                <i class="fa-solid fa-crosshairs"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Start & Team Selection Modal Screen -->
+    <div id="screen-start" class="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-md">
+        <div class="max-w-xl w-full bg-slate-900 border-2 border-amber-600/80 rounded-2xl p-6 md:p-8 text-center shadow-2xl relative overflow-hidden">
+            <div class="inline-flex items-center space-x-2 px-3 py-1 bg-amber-500/20 border border-amber-500/40 rounded-full text-amber-400 text-xs font-bold tracking-wider mb-3 uppercase">
+                <i class="fa-solid fa-plane-departure"></i> 1940 Skuadron Simpulan Bahasa
+            </div>
+
+            <h1 class="text-4xl md:text-5xl font-black uppercase military-font tracking-widest text-amber-400 drop-shadow-md">
+                SKY ACE 1940
+            </h1>
+            <p class="text-slate-300 text-sm md:text-base mt-2 mb-6">
+                Terbang laju, elak dan tembak rintangan di udara, serta rentas 
+                <strong class="text-amber-300">PINTU LANGIT</strong> mengikut warna skuadron anda untuk menjawab kuiz <strong>Simpulan Bahasa</strong>!
+            </p>
+
+            <!-- Choose Team Color -->
+            <div class="mb-6">
+                <label class="block text-xs uppercase tracking-widest text-slate-400 font-bold mb-3">
+                    PILIH WARNA SKUADRON ANDA:
+                </label>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <!-- Red Team -->
+                    <button type="button" onclick="selectTeam('red')" id="team-opt-red" class="team-card p-3 rounded-xl border-2 border-red-500 bg-red-950/50 hover:bg-red-900/60 transition-all flex flex-col items-center cursor-pointer">
+                        <div class="w-8 h-8 rounded-full bg-red-500 shadow-lg shadow-red-500/50 mb-1"></div>
+                        <span class="font-bold text-sm text-red-300">MERAH</span>
+                        <span class="text-[10px] text-slate-400">Lorong 1</span>
+                    </button>
+                    <!-- Blue Team -->
+                    <button type="button" onclick="selectTeam('blue')" id="team-opt-blue" class="team-card p-3 rounded-xl border-2 border-transparent bg-slate-800 hover:bg-blue-900/40 transition-all flex flex-col items-center cursor-pointer">
+                        <div class="w-8 h-8 rounded-full bg-blue-500 shadow-lg shadow-blue-500/50 mb-1"></div>
+                        <span class="font-bold text-sm text-blue-300">BIRU</span>
+                        <span class="text-[10px] text-slate-400">Lorong 2</span>
+                    </button>
+                    <!-- Green Team -->
+                    <button type="button" onclick="selectTeam('green')" id="team-opt-green" class="team-card p-3 rounded-xl border-2 border-transparent bg-slate-800 hover:bg-emerald-900/40 transition-all flex flex-col items-center cursor-pointer">
+                        <div class="w-8 h-8 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50 mb-1"></div>
+                        <span class="font-bold text-sm text-emerald-300">HIJAU</span>
+                        <span class="text-[10px] text-slate-400">Lorong 3</span>
+                    </button>
+                    <!-- Yellow Team -->
+                    <button type="button" onclick="selectTeam('yellow')" id="team-opt-yellow" class="team-card p-3 rounded-xl border-2 border-transparent bg-slate-800 hover:bg-yellow-900/40 transition-all flex flex-col items-center cursor-pointer">
+                        <div class="w-8 h-8 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50 mb-1"></div>
+                        <span class="font-bold text-sm text-yellow-300">KUNING</span>
+                        <span class="text-[10px] text-slate-400">Lorong 4</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 text-left text-xs text-slate-400 mb-6 space-y-1.5">
+                <div class="flex items-center"><i class="fa-solid fa-keyboard w-5 text-amber-400"></i> <span><strong>A / D</strong> atau <strong>Anak Panah</strong>: Tukar 4 Lorong Udara</span></div>
+                <div class="flex items-center"><i class="fa-solid fa-crosshairs w-5 text-amber-400"></i> <span><strong>SPACE</strong>: Tembak mesingan (Hancurkan awan & belon musuh)</span></div>
+                <div class="flex items-center"><i class="fa-solid fa-door-open w-5 text-amber-400"></i> <span>Masuki <strong>Pintu Warna Skuadron</strong> untuk markah bonus & kuiz!</span></div>
+            </div>
+
+            <!-- Start Button -->
+            <button id="btn-start-game" onclick="startGame()" class="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 font-black text-xl rounded-xl tracking-wider uppercase shadow-xl transition-all transform active:scale-95 flex items-center justify-center space-x-2 cursor-pointer">
+                <i class="fa-solid fa-plane-departure text-2xl"></i>
+                <span>MULA PENERBANGAN</span>
+            </button>
+
+            <!-- Leaderboard button on Start Screen -->
+            <button type="button" onclick="openLeaderboardModal()" class="w-full mt-3 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-amber-300 font-bold text-sm rounded-xl tracking-wide uppercase transition-all flex items-center justify-center space-x-2 cursor-pointer">
+                <i class="fa-solid fa-trophy text-amber-400"></i>
+                <span>LIHAT PAPAN PENDAHULU (LEADERBOARD)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- MCQ Simpulan Bahasa Interactive Modal -->
+    <div id="screen-quiz" class="hidden absolute inset-0 z-30 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+        <div class="max-w-lg w-full bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 md:p-8 shadow-2xl relative">
+            <div class="flex justify-between items-center mb-4">
+                <span class="px-3 py-1 bg-amber-500/20 border border-amber-400/40 rounded-full text-xs font-bold text-amber-300 uppercase tracking-widest">
+                    <i class="fa-solid fa-book-open mr-1"></i> Cabaran Simpulan Bahasa
+                </span>
+                <span id="quiz-timer" class="text-xs font-bold text-slate-400">
+                    Masa berfikir: <span class="text-amber-400 text-sm font-black">15s</span>
+                </span>
+            </div>
+
+            <h2 id="quiz-question" class="text-xl md:text-2xl font-bold text-white mb-2 leading-snug">
+                Apakah maksud simpulan bahasa ini?
+            </h2>
+            <p id="quiz-subtext" class="text-xs text-slate-400 mb-6 italic">
+                Pilih jawapan yang paling tepat untuk mengaktifkan pemecut enjin!
+            </p>
+
+            <div id="quiz-options-container" class="space-y-3 mb-6"></div>
+
+            <div id="quiz-feedback" class="hidden p-3 rounded-xl text-center text-sm font-bold"></div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="screen-game-over" class="hidden absolute inset-0 z-30 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+        <div class="max-w-md w-full bg-slate-900 border-2 border-red-600/80 rounded-3xl p-6 md:p-8 text-center shadow-2xl">
+            <div class="w-16 h-16 bg-red-900/40 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-red-400 text-3xl">
+                <i class="fa-solid fa-plane-slash"></i>
+            </div>
+            <h2 class="text-3xl font-black military-font uppercase tracking-wider text-red-500">
+                MISI TAMAT!
+            </h2>
+            <p class="text-slate-300 text-sm mt-1 mb-6">Kapal terbang anda telah terhempas di medan pertempuran 1940.</p>
+
+            <div class="bg-slate-950/80 rounded-2xl p-4 border border-slate-800 grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <div class="text-xs text-slate-400 uppercase">JUMLAH MARKAH</div>
+                    <div id="final-score" class="text-2xl font-black text-amber-400 military-font">0</div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-400 uppercase">KUIZ BETUL</div>
+                    <div id="final-quiz-count" class="text-2xl font-black text-emerald-400 military-font">0 / 0</div>
+                </div>
+            </div>
+
+            <!-- Google Sheets Submission -->
+            <div id="leaderboard-submit-box" class="bg-slate-950/90 rounded-2xl p-4 border border-amber-500/50 mb-4 text-left">
+                <label for="player-name-input" class="block text-xs uppercase tracking-wider text-amber-400 font-bold mb-1.5 flex items-center justify-between">
+                    <span><i class="fa-solid fa-medal mr-1"></i> Simpan Rekod Penerbangan:</span>
+                    <span class="text-[10px] text-slate-400 font-normal">Google Sheets</span>
+                </label>
+                <div class="flex gap-2">
+                    <input type="text" id="player-name-input" maxlength="20" placeholder="Nama Juruterbang..." 
+                        class="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition-all">
+                    <button type="button" id="btn-submit-score" onclick="submitScoreToGoogleSheet()" 
+                        class="px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl uppercase tracking-wider transition-all whitespace-nowrap flex items-center space-x-1 cursor-pointer">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>Hantar</span>
+                    </button>
+                </div>
+                <div id="submit-status" class="text-xs mt-2 text-center font-semibold hidden"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <button type="button" onclick="openLeaderboardModal()" class="py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-amber-300 font-bold text-xs rounded-xl uppercase tracking-wider transition-all flex items-center justify-center space-x-1.5 cursor-pointer">
+                    <i class="fa-solid fa-trophy text-amber-400"></i>
+                    <span>Papan Markah</span>
+                </button>
+                <button id="btn-restart" onclick="restartGame()" class="py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl uppercase tracking-wider shadow-lg transition-transform active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>Main Semula</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal Screen -->
+    <div id="screen-leaderboard" class="hidden absolute inset-0 z-40 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+        <div class="max-w-md w-full bg-slate-900 border-2 border-amber-500/80 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-trophy"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-black uppercase military-font tracking-wide text-white">Papan Pendahulu</h3>
+                        <p class="text-[11px] text-slate-400">Rekod Markah Tertinggi (Google Sheets)</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeLeaderboardModal()" class="text-slate-400 hover:text-white p-2 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div id="leaderboard-loading" class="py-10 flex flex-col items-center justify-center text-slate-400">
+                <i class="fa-solid fa-circle-notch fa-spin text-3xl text-amber-500 mb-2"></i>
+                <span class="text-xs uppercase tracking-wider">Memuat turun data Google Sheets...</span>
+            </div>
+
+            <div id="leaderboard-error" class="hidden py-6 text-center text-xs text-red-400 bg-red-950/30 border border-red-800/50 rounded-xl p-3 my-2">
+                <i class="fa-solid fa-triangle-exclamation text-base mb-1"></i>
+                <p id="leaderboard-error-text">Gagal menghubungi Google Sheets.</p>
+            </div>
+
+            <div id="leaderboard-list" class="hidden overflow-y-auto space-y-2 pr-1 my-2 flex-1"></div>
+
+            <div class="pt-3 border-t border-slate-800 mt-auto flex justify-between items-center text-xs">
+                <button type="button" onclick="fetchLeaderboard()" class="text-amber-400 hover:text-amber-300 font-bold flex items-center space-x-1 py-1 px-2.5 rounded-lg bg-slate-800 border border-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>Segar Semula</span>
+                </button>
+                <button type="button" onclick="closeLeaderboardModal()" class="py-1.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold cursor-pointer">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Google Apps Script Web App URL
+        const GOOGLE_SCRIPT_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyS5CzuU3ZVhxyRHODfkRMvlrnUIwAE112MET39s1CuqGRRJj67cFJge0osdc6_fnls/exec";
+
+        // Teams Configuration
+        const TEAMS = {
+            red: { name: 'Pasukan Merah', gateIndex: 0, colorHex: 0xef4444, cssColor: '#ef4444', tailwind: 'red' },
+            blue: { name: 'Pasukan Biru', gateIndex: 1, colorHex: 0x3b82f6, cssColor: '#3b82f6', tailwind: 'blue' },
+            green: { name: 'Pasukan Hijau', gateIndex: 2, colorHex: 0x22c55e, cssColor: '#22c55e', tailwind: 'emerald' },
+            yellow: { name: 'Pasukan Kuning', gateIndex: 3, colorHex: 0xeab308, cssColor: '#eab308', tailwind: 'yellow' }
+        };
+
+        const LANES = [-6, -2, 2, 6];
+        let currentLaneIndex = 1; // Start in Lane 2 (-2)
+        let selectedTeamKey = 'red';
+        let currentTeamConfig = TEAMS.red;
+
+        // Game Play State
+        let isGameRunning = false;
+        let isPausedForQuiz = false;
+        let score = 0;
+        let streak = 0;
+        let health = 100;
+        let quizCorrect = 0;
+        let quizTotalAttempted = 0;
+        let forwardSpeed = 0.95;
+        let quizCountdownInterval = null;
+        let lastBulletTime = 0;
+
+        // Simpulan Bahasa Quiz Bank
+        const QUIZ_BANK = [
+            {
+                question: "Apakah maksud simpulan bahasa 'Ada Hati'?",
+                options: ["Ada keinginan atau kemahuan", "Suka bermegah-megah", "Mudah berasa marah", "Rajin menuntut ilmu"],
+                answer: 0,
+                info: "'Ada hati' bermaksud seseorang yang mempunyai keinginan atau hajat untuk mencapai sesuatu."
+            },
+            {
+                question: "Apakah maksud simpulan bahasa 'Ringan Tulang'?",
+                options: ["Tulang yang tidak berat", "Mudah jatuh sakit", "Suka membantu dan rajin bekerja", "Orang yang kurus kering"],
+                answer: 2,
+                info: "'Ringan tulang' merujuk kepada orang yang rajin bekerja dan suka menolong orang lain."
+            },
+            {
+                question: "Apakah maksud simpulan bahasa 'Ulat Buku'?",
+                options: ["Orang yang gemar membaca buku", "Buku yang telah rosak dimakan ulat", "Orang yang suka mengoyak buku", "Orang yang pandai melukis"],
+                answer: 0,
+                info: "'Ulat buku' bermakna orang yang tekun dan sangat gemar membaca pelbagai bahan bacaan."
+            },
+            {
+                question: "Apakah maksud simpulan bahasa 'Ikat Perut'?",
+                options: ["Memakai tali pinggang yang ketat", "Menahan lapar kerana berjimat", "Mengalami sakit perut yang teruk", "Makan dengan terlalu kenyang"],
+                answer: 1,
+                info: "'Ikat perut' bermaksud mengurangkan makan kerana ingin berjimat-cermat ketika kesempitan."
+            },
+            {
+                question: "Apakah maksud simpulan bahasa 'Hidung Tinggi'?",
+                options: ["Mempunyai hidung mancung", "Suka bernafas dalam udara segar", "Orang yang sombong atau megah", "Orang yang berbadan tinggi"],
+                answer: 2,
+                info: "'Hidung tinggi' ialah simpulan bahasa yang menggambarkan sikap orang yang sombong atau angkuh."
+            },
+            {
+                question: "Apakah maksud simpulan bahasa 'Makan Angin'?",
+                options: ["Pergi bercuti atau bersiar-siar", "Menghirup udara malam", "Tidak makan makanan berat", "Suka berkhayal di siang hari"],
+                answer: 0,
+                info: "'Makan angin' bermaksud keluar melancong atau bersiar-siar untuk berehat dan melapangkan fikiran."
+            },
+            {
+                question: "Apakah maksud simpulan bahasa 'Kaki Ayam'?",
+                options: ["Berjalan tanpa memakai kasut", "Suka makan kaki ayam", "Orang yang berjalan pantas", "Orang yang suka melarikan diri"],
+                answer: 0,
+                info: "'Kaki ayam' bermakna keadaan tidak memakai kasut atau selipar semasa berjalan."
+            },
+            {
+                question: "Apakah maksud simpulan bahasa 'Otak Cair'?",
+                options: ["Mengalami sakit kepala", "Sangat cerdik dan pandai", "Mudah lupa perkara baru", "Suka bertindak terburu-buru"],
+                answer: 1,
+                info: "'Otak cair' membawa maksud seseorang yang sangat pintar, cerdik dan cepat faham pelajaran."
+            },
+            {
+                question: "Apakah maksud simpulan bahasa 'Pening Lalat'?",
+                options: ["Rasa pening-pening sedikit", "Melihat lalat berterbangan", "Hilang ingatan sepenuhnya", "Ketakutan yang amat sangat"],
+                answer: 0,
+                info: "'Pening lalat' bermaksud berasa sedikit pening atau kepala rasa berpusing-pusing sedikit."
+            },
+            {
+                question: "Apakah maksud simpulan bahasa 'Tangkai Jering'?",
+                options: ["Orang yang sangat kedekut", "Orang yang suka bertani", "Orang yang suka berbelanja boros", "Orang yang lemah semangat"],
+                answer: 0,
+                info: "'Tangkai jering' ialah simpulan bahasa untuk orang yang sangat kedekut atau bakhil."
+            }
+        ];
+
+        // Synthesizer Audio Effects using Tone.js
+        const sfx = {
+            synth: null,
+            noiseSynth: null,
+            init() {
+                try {
+                    this.synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                    this.noiseSynth = new Tone.NoiseSynth({
+                        noise: { type: 'pink' },
+                        envelope: { attack: 0.005, decay: 0.15, sustain: 0 }
+                    }).toDestination();
+                } catch (e) {
+                    console.warn("Tone audio init delayed:", e);
+                }
+            },
+            shoot() {
+                try {
+                    if (Tone.context.state !== 'running') Tone.start();
+                    this.noiseSynth?.triggerAttackRelease("16n");
+                } catch(e) {}
+            },
+            hit() {
+                try {
+                    if (Tone.context.state !== 'running') Tone.start();
+                    this.synth?.triggerAttackRelease(["C2", "E2"], "8n");
+                } catch(e) {}
+            },
+            gate() {
+                try {
+                    if (Tone.context.state !== 'running') Tone.start();
+                    this.synth?.triggerAttackRelease(["C5", "E5", "G5"], "16n");
+                } catch(e) {}
+            },
+            correct() {
+                try {
+                    if (Tone.context.state !== 'running') Tone.start();
+                    this.synth?.triggerAttackRelease(["C5", "G5", "C6"], "8n");
+                } catch(e) {}
+            },
+            wrong() {
+                try {
+                    if (Tone.context.state !== 'running') Tone.start();
+                    this.synth?.triggerAttackRelease(["Eb3", "Bb2"], "8n");
+                } catch(e) {}
+            }
+        };
+
+        // Explicitly exposed selectTeam to ensure onclick works seamlessly
+        window.selectTeam = function(teamKey) {
+            if (!TEAMS[teamKey]) return;
+            selectedTeamKey = teamKey;
+            currentTeamConfig = TEAMS[teamKey];
+
+            // Update UI card borders
+            ['red', 'blue', 'green', 'yellow'].forEach(t => {
+                const el = document.getElementById(`team-opt-${t}`);
+                if (!el) return;
+                if (t === teamKey) {
+                    el.classList.add('border-' + (t === 'green' ? 'emerald' : t) + '-500', 'bg-' + (t === 'green' ? 'emerald' : t) + '-950/50');
+                    el.classList.remove('border-transparent', 'bg-slate-800');
+                } else {
+                    el.classList.remove('border-red-500', 'border-blue-500', 'border-emerald-500', 'border-yellow-500', 'bg-red-950/50', 'bg-blue-950/50', 'bg-emerald-950/50', 'bg-yellow-950/50');
+                    el.classList.add('border-transparent', 'bg-slate-800');
+                }
+            });
+
+            // Update HUD Team presentation
+            const badge = document.getElementById('hud-team-badge');
+            const nameEl = document.getElementById('hud-team-name');
+            const box = document.getElementById('hud-team-box');
+
+            if (nameEl && badge && box) {
+                nameEl.innerText = currentTeamConfig.name;
+                nameEl.style.color = currentTeamConfig.cssColor;
+                badge.style.borderColor = currentTeamConfig.cssColor;
+                badge.style.color = currentTeamConfig.cssColor;
+                box.style.borderColor = currentTeamConfig.cssColor;
+            }
+
+            // Update plane color in 3D scene
+            if (planeMesh && planeMesh.material) {
+                planeMesh.material.color.setHex(currentTeamConfig.colorHex);
+            }
+        };
+
+        let scene, camera, renderer;
+        let planeGroup, planeMesh, propellerMesh;
+        let bullets = [];
+        let obstacles = [];
+        let gateClusters = [];
+        let clouds = [];
+        const GATE_SPACING = 300;
+        let nextGateZ = -250;
+
+        function initThreeScene() {
+            const canvas = document.getElementById('game-canvas');
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x0d1b2a, 0.005);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1200);
+            camera.position.set(0, 4.5, 9);
+            camera.lookAt(0, 1.2, -15);
+
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // Lighting
+            const hemiLight = new THREE.HemisphereLight(0xffeedd, 0x080820, 1.1);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.3);
+            dirLight.position.set(20, 40, 20);
+            scene.add(dirLight);
+
+            // Ocean / Ground plane with grid
+            const groundGeo = new THREE.PlaneGeometry(300, 1500, 20, 20);
+            const groundMat = new THREE.MeshBasicMaterial({ color: 0x07111e, wireframe: true });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -8;
+            ground.position.z = -500;
+            scene.add(ground);
+
+            // Build 1940s Spitfire-style Fighter Plane
+            planeGroup = new THREE.Group();
+
+            // Fuselage
+            const bodyGeo = new THREE.ConeGeometry(0.7, 3.8, 8);
+            const bodyMat = new THREE.MeshStandardMaterial({ 
+                color: currentTeamConfig.colorHex, 
+                roughness: 0.4, 
+                metalness: 0.6 
+            });
+            planeMesh = new THREE.Mesh(bodyGeo, bodyMat);
+            planeMesh.rotation.x = Math.PI / 2;
+            planeGroup.add(planeMesh);
+
+            // Wings
+            const wingGeo = new THREE.BoxGeometry(6.2, 0.1, 1.2);
+            const wingMat = new THREE.MeshStandardMaterial({ color: 0x2b3848, metalness: 0.5 });
+            const wings = new THREE.Mesh(wingGeo, wingMat);
+            wings.position.set(0, 0, 0.2);
+            planeGroup.add(wings);
+
+            // Cockpit Canopy
+            const cockpitGeo = new THREE.SphereGeometry(0.35, 8, 8);
+            const cockpitMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.7 });
+            const cockpit = new THREE.Mesh(cockpitGeo, cockpitMat);
+            cockpit.position.set(0, 0.35, 0.3);
+            cockpit.scale.set(0.8, 1, 2.2);
+            planeGroup.add(cockpit);
+
+            // Tail Fin
+            const tailGeo = new THREE.BoxGeometry(0.12, 1, 0.8);
+            const tail = new THREE.Mesh(tailGeo, wingMat);
+            tail.position.set(0, 0.55, 1.7);
+            planeGroup.add(tail);
+
+            // Propeller
+            const propGeo = new THREE.BoxGeometry(2, 0.15, 0.05);
+            const propMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+            propellerMesh = new THREE.Mesh(propGeo, propMat);
+            propellerMesh.position.set(0, 0, -1.95);
+            planeGroup.add(propellerMesh);
+
+            planeGroup.position.set(LANES[currentLaneIndex], 0, 0);
+            scene.add(planeGroup);
+
+            // Ambient sky clouds
+            spawnAmbientClouds();
+
+            // Resize Listener
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function spawnAmbientClouds() {
+            const cloudGeo = new THREE.DodecahedronGeometry(4, 1);
+            const cloudMat = new THREE.MeshBasicMaterial({ color: 0x223348, transparent: true, opacity: 0.35, wireframe: true });
+            for (let i = 0; i < 20; i++) {
+                const cloud = new THREE.Mesh(cloudGeo, cloudMat);
+                cloud.position.set(
+                    (Math.random() - 0.5) * 80,
+                    Math.random() * 15 - 3,
+                    -Math.random() * 600
+                );
+                cloud.scale.set(Math.random() * 2 + 1, 0.6, Math.random() * 2 + 1);
+                scene.add(cloud);
+                clouds.push(cloud);
+            }
+        }
+
+        function spawnGateCluster(zPos) {
+            const cluster = {
+                z: zPos,
+                passed: false,
+                gates: []
+            };
+
+            const colors = [TEAMS.red.colorHex, TEAMS.blue.colorHex, TEAMS.green.colorHex, TEAMS.yellow.colorHex];
+
+            LANES.forEach((xPos, idx) => {
+                const gateGroup = new THREE.Group();
+                const gateColor = colors[idx];
+
+                // Torus Frame
+                const frameGeo = new THREE.TorusGeometry(1.8, 0.16, 8, 24);
+                const frameMat = new THREE.MeshStandardMaterial({ 
+                    color: gateColor, 
+                    emissive: gateColor, 
+                    emissiveIntensity: 0.8,
+                    metalness: 0.8 
+                });
+                const frame = new THREE.Mesh(frameGeo, frameMat);
+                gateGroup.add(frame);
+
+                // Energy Curtain inside portal
+                const curtainGeo = new THREE.CircleGeometry(1.65, 16);
+                const curtainMat = new THREE.MeshBasicMaterial({ 
+                    color: gateColor, 
+                    transparent: true, 
+                    opacity: 0.28, 
+                    side: THREE.DoubleSide 
+                });
+                const curtain = new THREE.Mesh(curtainGeo, curtainMat);
+                gateGroup.add(curtain);
+
+                gateGroup.position.set(xPos, 0, zPos);
+                scene.add(gateGroup);
+
+                cluster.gates.push({
+                    mesh: gateGroup,
+                    laneIndex: idx,
+                    colorHex: gateColor
+                });
+            });
+
+            gateClusters.push(cluster);
+        }
+
+        function spawnObstacle(zPos) {
+            // Reconnaissance mine / enemy air balloon
+            const obsGroup = new THREE.Group();
+            const bodyGeo = new THREE.DodecahedronGeometry(1.2, 0);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x991b1b, metalness: 0.7, roughness: 0.3 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            obsGroup.add(body);
+
+            // Spikes
+            const spikeGeo = new THREE.ConeGeometry(0.3, 1, 4);
+            const spikeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+            for (let i = 0; i < 4; i++) {
+                const spike = new THREE.Mesh(spikeGeo, spikeMat);
+                spike.rotation.z = (Math.PI / 2) * i;
+                spike.position.x = Math.sin((Math.PI / 2) * i) * 1.2;
+                spike.position.y = Math.cos((Math.PI / 2) * i) * 1.2;
+                obsGroup.add(spike);
+            }
+
+            const laneIdx = Math.floor(Math.random() * 4);
+            obsGroup.position.set(LANES[laneIdx], 0, zPos);
+            scene.add(obsGroup);
+
+            obstacles.push({
+                mesh: obsGroup,
+                laneIndex: laneIdx,
+                z: zPos,
+                active: true
+            });
+        }
+
+        function shootBullet() {
+            if (!isGameRunning || isPausedForQuiz) return;
+            const now = performance.now();
+            if (now - lastBulletTime < 180) return; // Rate limiter
+            lastBulletTime = now;
+
+            sfx.shoot();
+
+            // Dual wingtip tracer bullets
+            [-1.8, 1.8].forEach(offset => {
+                const bulletGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 6);
+                const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffea00 });
+                const bulletMesh = new THREE.Mesh(bulletGeo, bulletMat);
+                bulletMesh.rotation.x = Math.PI / 2;
+                bulletMesh.position.set(planeGroup.position.x + offset, planeGroup.position.y, planeGroup.position.z - 2.5);
+                scene.add(bulletMesh);
+
+                bullets.push({
+                    mesh: bulletMesh,
+                    z: bulletMesh.position.z,
+                    x: bulletMesh.position.x
+                });
+            });
+        }
+
+        function moveLane(direction) {
+            if (!isGameRunning || isPausedForQuiz) return;
+            const newIndex = currentLaneIndex + direction;
+            if (newIndex >= 0 && newIndex < LANES.length) {
+                currentLaneIndex = newIndex;
+            }
+        }
+
+        function triggerQuiz() {
+            isPausedForQuiz = true;
+            sfx.gate();
+
+            const quizModal = document.getElementById('screen-quiz');
+            const qTitle = document.getElementById('quiz-question');
+            const optContainer = document.getElementById('quiz-options-container');
+            const feedback = document.getElementById('quiz-feedback');
+            const timerEl = document.getElementById('quiz-timer');
+
+            feedback.classList.add('hidden');
+            optContainer.innerHTML = '';
+            quizModal.classList.remove('hidden');
+
+            // Pick a random question
+            const quizItem = QUIZ_BANK[Math.floor(Math.random() * QUIZ_BANK.length)];
+            qTitle.innerText = quizItem.question;
+
+            let secondsLeft = 15;
+            timerEl.innerHTML = `Masa: <span class="text-amber-400 font-bold">${secondsLeft}s</span>`;
+            clearInterval(quizCountdownInterval);
+            quizCountdownInterval = setInterval(() => {
+                secondsLeft--;
+                timerEl.innerHTML = `Masa: <span class="text-amber-400 font-bold">${secondsLeft}s</span>`;
+                if (secondsLeft <= 0) {
+                    clearInterval(quizCountdownInterval);
+                    handleQuizAnswer(-1, quizItem);
+                }
+            }, 1000);
+
+            quizItem.options.forEach((optText, idx) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'w-full p-3.5 bg-slate-800 hover:bg-slate-700 active:scale-98 rounded-xl border border-slate-700 hover:border-amber-400 text-left text-sm font-semibold transition-all flex items-center justify-between cursor-pointer';
+                btn.innerHTML = `<span><strong class="text-amber-400 mr-2">${String.fromCharCode(65 + idx)}.</strong> ${escapeHtml(optText)}</span><i class="fa-solid fa-chevron-right text-slate-500"></i>`;
+                btn.onclick = () => {
+                    clearInterval(quizCountdownInterval);
+                    handleQuizAnswer(idx, quizItem);
+                };
+                optContainer.appendChild(btn);
+            });
+        }
+
+        function handleQuizAnswer(selectedIndex, quizItem) {
+            quizTotalAttempted++;
+            const feedback = document.getElementById('quiz-feedback');
+            const optButtons = document.querySelectorAll('#quiz-options-container button');
+
+            optButtons.forEach((btn, idx) => {
+                btn.disabled = true;
+                if (idx === quizItem.answer) {
+                    btn.classList.add('bg-emerald-800', 'border-emerald-400');
+                } else if (idx === selectedIndex) {
+                    btn.classList.add('bg-red-800', 'border-red-400');
+                }
+            });
+
+            feedback.classList.remove('hidden');
+
+            if (selectedIndex === quizItem.answer) {
+                quizCorrect++;
+                streak++;
+                score += 1000 + (streak * 200);
+                health = Math.min(100, health + 25);
+                sfx.correct();
+
+                feedback.className = "p-3 rounded-xl text-center text-sm font-bold bg-emerald-950/80 border border-emerald-500 text-emerald-300";
+                feedback.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> TAHNIAH! TEPAT! +${1000 + (streak * 200)} Markah! <div class="text-[11px] font-normal mt-1">${quizItem.info}</div>`;
+            } else {
+                streak = 0;
+                health = Math.max(0, health - 20);
+                sfx.wrong();
+
+                feedback.className = "p-3 rounded-xl text-center text-sm font-bold bg-red-950/80 border border-red-500 text-red-300";
+                feedback.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> KURANG TEPAT! <div class="text-[11px] font-normal mt-1">${quizItem.info}</div>`;
+            }
+
+            updateHUD();
+
+            setTimeout(() => {
+                document.getElementById('screen-quiz').classList.add('hidden');
+                isPausedForQuiz = false;
+                if (health <= 0) {
+                    triggerGameOver();
+                }
+            }, 2500);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (propellerMesh) {
+                propellerMesh.rotation.z += 0.45;
+            }
+
+            if (!isGameRunning || isPausedForQuiz) {
+                renderer.render(scene, camera);
+                return;
+            }
+
+            // Continuous forward flying
+            planeGroup.position.z -= forwardSpeed;
+            camera.position.z = planeGroup.position.z + 9;
+
+            // Smooth lane interpolation
+            const targetX = LANES[currentLaneIndex];
+            planeGroup.position.x += (targetX - planeGroup.position.x) * 0.15;
+            
+            // Banking roll tilt when turning
+            const bankAngle = (planeGroup.position.x - targetX) * 0.1;
+            planeGroup.rotation.z = bankAngle;
+            planeGroup.rotation.y = bankAngle * 0.5;
+
+            // Score increases with flight distance
+            score += 1;
+            updateHUD();
+
+            // Spawn dynamic gates and obstacles
+            if (planeGroup.position.z < nextGateZ + 400) {
+                spawnGateCluster(nextGateZ);
+                // Spawn 2 obstacles between gates
+                spawnObstacle(nextGateZ + 120);
+                spawnObstacle(nextGateZ + 200);
+                nextGateZ -= GATE_SPACING;
+            }
+
+            // Update Bullets
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.mesh.position.z -= 3.5;
+                if (b.mesh.position.z < planeGroup.position.z - 200) {
+                    scene.remove(b.mesh);
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Check bullet collision with obstacles
+                for (let j = obstacles.length - 1; j >= 0; j--) {
+                    const obs = obstacles[j];
+                    if (obs.active && Math.abs(obs.mesh.position.z - b.mesh.position.z) < 2.5 && Math.abs(obs.mesh.position.x - b.mesh.position.x) < 2.0) {
+                        obs.active = false;
+                        scene.remove(obs.mesh);
+                        obstacles.splice(j, 1);
+                        scene.remove(b.mesh);
+                        bullets.splice(i, 1);
+                        sfx.hit();
+                        score += 300;
+                        break;
+                    }
+                }
+            }
+
+            // Check Obstacle collisions with plane
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obs = obstacles[i];
+                obs.mesh.rotation.y += 0.02;
+                obs.mesh.rotation.x += 0.01;
+
+                if (obs.active && Math.abs(obs.mesh.position.z - planeGroup.position.z) < 2.0 && Math.abs(obs.mesh.position.x - planeGroup.position.x) < 1.6) {
+                    obs.active = false;
+                    scene.remove(obs.mesh);
+                    obstacles.splice(i, 1);
+                    sfx.hit();
+                    health -= 35;
+                    streak = 0;
+                    showAlert("KAPAL TERLANGGAR RINTANGAN!");
+                    if (health <= 0) {
+                        triggerGameOver();
+                    }
+                }
+
+                if (obs.mesh.position.z > planeGroup.position.z + 20) {
+                    scene.remove(obs.mesh);
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            // Check Gate Clusters
+            gateClusters.forEach(cluster => {
+                if (!cluster.passed && cluster.z >= planeGroup.position.z) {
+                    cluster.passed = true;
+
+                    // Check which lane user passed through
+                    const userLane = currentLaneIndex;
+                    if (userLane === currentTeamConfig.gateIndex) {
+                        // Correct Squad Portal!
+                        score += 500;
+                        triggerQuiz();
+                    } else {
+                        // Wrong portal penalty
+                        streak = 0;
+                        health -= 15;
+                        sfx.wrong();
+                        showAlert("PINTU SALAH! MASUKI PINTU SKUAD ANDA!");
+                        if (health <= 0) triggerGameOver();
+                    }
+                }
+            });
+
+            // Clean up old gates
+            for (let i = gateClusters.length - 1; i >= 0; i--) {
+                if (gateClusters[i].z > planeGroup.position.z + 40) {
+                    gateClusters[i].gates.forEach(g => scene.remove(g.mesh));
+                    gateClusters.splice(i, 1);
+                }
+            }
+
+            // Animate background clouds
+            clouds.forEach(cloud => {
+                if (cloud.position.z > planeGroup.position.z + 30) {
+                    cloud.position.z = planeGroup.position.z - 500 - Math.random() * 200;
+                    cloud.position.x = (Math.random() - 0.5) * 80;
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        function showAlert(msg) {
+            const el = document.getElementById('hud-alert');
+            el.innerText = msg;
+            el.classList.remove('hidden');
+            setTimeout(() => {
+                el.classList.add('hidden');
+            }, 1600);
+        }
+
+        function updateHUD() {
+            document.getElementById('hud-score').innerText = String(score).padStart(5, '0');
+            document.getElementById('hud-streak').innerText = 'x' + streak;
+
+            const healthBar = document.getElementById('hud-health-bar');
+            healthBar.style.width = Math.max(0, health) + '%';
+            if (health < 30) {
+                healthBar.className = "bg-red-500 h-full transition-all duration-300";
+            } else if (health < 60) {
+                healthBar.className = "bg-amber-500 h-full transition-all duration-300";
+            } else {
+                healthBar.className = "bg-emerald-500 h-full transition-all duration-300";
+            }
+
+            // Find closest upcoming gate cluster for distance tracker
+            const upcoming = gateClusters.find(c => c.z < planeGroup.position.z);
+            if (upcoming) {
+                const dist = Math.max(0, Math.round(Math.abs(upcoming.z - planeGroup.position.z)));
+                document.getElementById('hud-distance').innerText = dist + " M";
+                const pct = Math.min(100, Math.max(0, 100 - (dist / GATE_SPACING * 100)));
+                document.getElementById('hud-distance-bar').style.width = pct + '%';
+            }
+        }
+
+        function startGame() {
+            sfx.init();
+            document.getElementById('screen-start').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+
+            // Reset parameters
+            score = 0;
+            streak = 0;
+            health = 100;
+            quizCorrect = 0;
+            quizTotalAttempted = 0;
+            currentLaneIndex = 1;
+            nextGateZ = -250;
+
+            // Clear entities
+            bullets.forEach(b => scene.remove(b.mesh));
+            bullets = [];
+            obstacles.forEach(o => scene.remove(o.mesh));
+            obstacles = [];
+            gateClusters.forEach(c => c.gates.forEach(g => scene.remove(g.mesh)));
+            gateClusters = [];
+
+            planeGroup.position.set(LANES[currentLaneIndex], 0, 0);
+            isGameRunning = true;
+            isPausedForQuiz = false;
+            updateHUD();
+        }
+
+        function triggerGameOver() {
+            isGameRunning = false;
+            document.getElementById('screen-game-over').classList.remove('hidden');
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-quiz-count').innerText = `${quizCorrect} / ${quizTotalAttempted}`;
+        }
+
+        function restartGame() {
+            document.getElementById('screen-game-over').classList.add('hidden');
+            startGame();
+        }
+
+        // Key Listeners
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') moveLane(-1);
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') moveLane(1);
+            if (e.code === 'Space') shootBullet();
+        });
+
+        // Touch control buttons
+        document.getElementById('btn-left').addEventListener('click', () => moveLane(-1));
+        document.getElementById('btn-right').addEventListener('click', () => moveLane(1));
+        document.getElementById('btn-shoot').addEventListener('click', () => shootBullet());
+
+        function loadViaJsonp(url, params = {}) {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'gasCallback_' + Math.round(100000 * Math.random());
+                const query = new URLSearchParams(params);
+                query.set('callback', callbackName);
+                query.set('_', Date.now());
+
+                const delimiter = url.includes('?') ? '&' : '?';
+                const scriptUrl = `${url}${delimiter}${query.toString()}`;
+
+                const script = document.createElement('script');
+                script.src = scriptUrl;
+                script.async = true;
+
+                let timeout = setTimeout(() => {
+                    cleanup();
+                    reject(new Error("Masa tamat (Timeout) Google Sheets."));
+                }, 10000);
+
+                function cleanup() {
+                    if (timeout) clearTimeout(timeout);
+                    if (window[callbackName]) delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                }
+
+                window[callbackName] = function(data) {
+                    cleanup();
+                    resolve(data);
+                };
+
+                script.onerror = function() {
+                    cleanup();
+                    reject(new Error("Ralat sambungan ke Google Sheets."));
+                };
+
+                document.body.appendChild(script);
+            });
+        }
+
+        async function fetchLeaderboard() {
+            const loadingEl = document.getElementById('leaderboard-loading');
+            const errorEl = document.getElementById('leaderboard-error');
+            const listEl = document.getElementById('leaderboard-list');
+            const errorTextEl = document.getElementById('leaderboard-error-text');
+
+            loadingEl.classList.remove('hidden');
+            errorEl.classList.add('hidden');
+            listEl.classList.add('hidden');
+            listEl.innerHTML = '';
+
+            try {
+                let data = null;
+                try {
+                    data = await loadViaJsonp(GOOGLE_SCRIPT_WEBAPP_URL, { action: 'getScores' });
+                } catch (jsonpErr) {
+                    const response = await fetch(`${GOOGLE_SCRIPT_WEBAPP_URL}?action=getScores&_=${Date.now()}`, {
+                        method: 'GET',
+                        redirect: 'follow'
+                    });
+                    data = await response.json();
+                }
+
+                if (!data || !data.scores || !Array.isArray(data.scores)) {
+                    throw new Error("Format data Google Sheets tidak sah.");
+                }
+
+                renderLeaderboardList(data.scores);
+            } catch (err) {
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+                errorTextEl.innerText = err.message || "Gagal muat turun papan markah.";
+            }
+        }
+
+        function renderLeaderboardList(scores) {
+            const loadingEl = document.getElementById('leaderboard-loading');
+            const listEl = document.getElementById('leaderboard-list');
+
+            loadingEl.classList.add('hidden');
+            listEl.classList.remove('hidden');
+
+            if (scores.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-8 text-slate-500 text-xs">
+                        <i class="fa-solid fa-ghost text-2xl mb-2 text-slate-600 block"></i>
+                        Belum ada rekod penerbangan. Jadilah juruterbang pertama!
+                    </div>
+                `;
+                return;
+            }
+
+            scores.sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+
+            let html = '';
+            scores.forEach((item, index) => {
+                const rank = index + 1;
+                let rankBadge = `<span class="w-6 h-6 flex items-center justify-center font-bold text-xs text-slate-400 bg-slate-800 rounded-full">${rank}</span>`;
+                if (rank === 1) rankBadge = `<span class="w-6 h-6 flex items-center justify-center font-black text-xs text-slate-950 bg-amber-400 rounded-full shadow-md">1</span>`;
+                else if (rank === 2) rankBadge = `<span class="w-6 h-6 flex items-center justify-center font-black text-xs text-slate-950 bg-slate-300 rounded-full shadow-md">2</span>`;
+                else if (rank === 3) rankBadge = `<span class="w-6 h-6 flex items-center justify-center font-black text-xs text-slate-950 bg-amber-700 rounded-full shadow-md">3</span>`;
+
+                html += `
+                    <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                        <div class="flex items-center space-x-3">
+                            ${rankBadge}
+                            <div>
+                                <div class="font-bold text-xs text-white">${escapeHtml(item.name || 'Pemain')}</div>
+                                <div class="text-[10px] text-slate-400">
+                                    Kuiz: <span class="text-emerald-400 font-semibold">${escapeHtml(item.quizScore || '0/0')}</span> &bull; 
+                                    <span class="text-amber-400">${escapeHtml(item.team || '')}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-black text-base text-amber-400 military-font tracking-wider">
+                                ${Number(item.score || 0).toLocaleString()}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listEl.innerHTML = html;
+        }
+
+        async function submitScoreToGoogleSheet() {
+            const nameInput = document.getElementById('player-name-input');
+            const submitBtn = document.getElementById('btn-submit-score');
+            const statusEl = document.getElementById('submit-status');
+
+            const playerName = (nameInput.value || '').trim();
+            if (!playerName) {
+                statusEl.classList.remove('hidden');
+                statusEl.className = "text-xs mt-2 text-center font-bold text-red-400";
+                statusEl.innerText = "Sila masukkan nama anda!";
+                nameInput.focus();
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>Menghantar...</span>`;
+            statusEl.classList.remove('hidden');
+            statusEl.className = "text-xs mt-2 text-center text-amber-400";
+            statusEl.innerText = "Menyimpan ke Google Sheets...";
+
+            const payloadData = {
+                action: 'addScore',
+                timestamp: new Date().toLocaleString('ms-MY'),
+                name: playerName,
+                score: score,
+                quizScore: `${quizCorrect}/${quizTotalAttempted}`,
+                team: currentTeamConfig.name
+            };
+
+            try {
+                try {
+                    await loadViaJsonp(GOOGLE_SCRIPT_WEBAPP_URL, payloadData);
+                } catch (jsonpErr) {
+                    await fetch(GOOGLE_SCRIPT_WEBAPP_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payloadData)
+                    });
+                }
+
+                statusEl.className = "text-xs mt-2 text-center font-bold text-emerald-400";
+                statusEl.innerHTML = `<i class="fa-solid fa-check mr-1"></i> Rekod berjaya disimpan!`;
+                submitBtn.innerHTML = `<i class="fa-solid fa-check"></i> <span>Berjaya</span>`;
+                nameInput.disabled = true;
+
+                setTimeout(() => {
+                    openLeaderboardModal();
+                }, 1200);
+
+            } catch (err) {
+                statusEl.className = "text-xs mt-2 text-center font-bold text-red-400";
+                statusEl.innerText = "Gagal menyimpan. Sila cuba lagi.";
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> <span>Cuba Lagi</span>`;
+            }
+        }
+
+        function openLeaderboardModal() {
+            document.getElementById('screen-leaderboard').classList.remove('hidden');
+            fetchLeaderboard();
+        }
+
+        function closeLeaderboardModal() {
+            document.getElementById('screen-leaderboard').classList.add('hidden');
+        }
+
+        function escapeHtml(string) {
+            const div = document.createElement('div');
+            div.innerText = string;
+            return div.innerHTML;
+        }
+
+        window.onload = function () {
+            initThreeScene();
+            selectTeam('red');
+            animate();
+        };
+    </script>
+</body>
+</html>
